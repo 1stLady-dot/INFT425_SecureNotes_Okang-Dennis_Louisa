@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart';
 
 class EncryptionHelper {
@@ -10,7 +11,7 @@ class EncryptionHelper {
   static IV _generateIV() {
     final random = Random.secure();
     final ivBytes = List<int>.generate(16, (_) => random.nextInt(256));
-    return IV.fromUtf8(utf8.decode(ivBytes));
+    return IV(Uint8List.fromList(ivBytes));
   }
 
   static String encrypt(String plainText) {
@@ -18,7 +19,8 @@ class EncryptionHelper {
     final encrypter = Encrypter(AES(_key, mode: AESMode.cbc));
     final iv = _generateIV();
     final encrypted = encrypter.encrypt(plainText, iv: iv);
-    return '${base64Encode(iv.bytes)}:${encrypted.base64}';
+    final ivBase64 = base64.encode(iv.bytes);
+    return '$ivBase64:${encrypted.base64}';
   }
 
   static String decrypt(String cipherText) {
@@ -26,8 +28,8 @@ class EncryptionHelper {
     final parts = cipherText.split(':');
     if (parts.length != 2) return '';
     
-    final ivBytes = base64Decode(parts[0]);
-    final iv = IV(ivBytes);
+    final ivBytes = base64.decode(parts[0]);
+    final iv = IV(Uint8List.fromList(ivBytes));
     final encrypter = Encrypter(AES(_key, mode: AESMode.cbc));
     
     final decrypted = encrypter.decrypt(Encrypted.fromBase64(parts[1]), iv: iv);

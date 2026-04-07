@@ -12,7 +12,6 @@ class AddEditNoteScreen extends StatefulWidget {
 }
 
 class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final NotesService _notesService = NotesService();
@@ -21,39 +20,90 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
   @override
   void initState() {
     super.initState();
+    print('=== AddEditNoteScreen INITIALIZED ===');
     if (widget.note != null) {
+      print('Editing existing note: ${widget.note!.id}');
       _titleController.text = widget.note!.title;
       _contentController.text = widget.note!.content;
+    } else {
+      print('Creating NEW note');
     }
   }
 
   Future<void> _saveNote() async {
-    if (!_formKey.currentState!.validate()) return;
+    print('=== SAVE BUTTON PRESSED ===');
+    print('Title: "${_titleController.text.trim()}"');
+    print('Content: "${_contentController.text.trim()}"');
     
-    setState(() => _isSaving = true);
-    
-    if (widget.note == null) {
-      // Create new note
-      final newNote = Note(
-        id: _notesService.generateId(),
-        title: _titleController.text.trim(),
-        content: _contentController.text.trim(),
-        lastEdited: DateTime.now(),
-        isPinned: false,
+    // Simple validation
+    if (_titleController.text.trim().isEmpty) {
+      print('ERROR: Title is empty');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a title')),
       );
-      await _notesService.addNote(newNote);
-    } else {
-      // Update existing note
-      final updatedNote = widget.note!.copyWith(
-        title: _titleController.text.trim(),
-        content: _contentController.text.trim(),
-        lastEdited: DateTime.now(),
-      );
-      await _notesService.updateNote(updatedNote);
+      return;
     }
     
-    if (mounted) {
-      Navigator.pop(context, true);
+    if (_contentController.text.trim().isEmpty) {
+      print('ERROR: Content is empty');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter content')),
+      );
+      return;
+    }
+    
+    print('Validation passed!');
+    setState(() {
+      _isSaving = true;
+    });
+    
+    try {
+      if (widget.note == null) {
+        // Create new note
+        print('Creating new note...');
+        final newId = _notesService.generateId();
+        print('Generated ID: $newId');
+        
+        final newNote = Note(
+          id: newId,
+          title: _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          lastEdited: DateTime.now(),
+          isPinned: false,
+        );
+        
+        await _notesService.addNote(newNote);
+        print('SUCCESS: Note added to service');
+      } else {
+        // Update existing note
+        print('Updating existing note...');
+        final updatedNote = widget.note!.copyWith(
+          title: _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          lastEdited: DateTime.now(),
+        );
+        
+        await _notesService.updateNote(updatedNote);
+        print('SUCCESS: Note updated');
+      }
+      
+      if (mounted) {
+        print('Returning to notes list with success=true');
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      print('ERROR CAUGHT: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving note: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -65,59 +115,54 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _saveNote,
-            child: Text(
-              'Save',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    'Save',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _titleController,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                hintText: 'Enter note title',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+              ),
+              maxLength: 100,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: TextField(
+                controller: _contentController,
                 decoration: const InputDecoration(
-                  labelText: 'Title',
+                  labelText: 'Content',
+                  hintText: 'Enter note content',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.title),
+                  alignLabelWithHint: true,
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a title';
-                  }
-                  return null;
-                },
-                maxLength: 100,
+                maxLines: null,
+                expands: true,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: TextFormField(
-                  controller: _contentController,
-                  decoration: const InputDecoration(
-                    labelText: 'Content',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                  maxLines: null,
-                  expands: true,
-                  keyboardType: TextInputType.multiline,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter some content';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -125,6 +170,7 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
 
   @override
   void dispose() {
+    print('AddEditNoteScreen DISPOSED');
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();

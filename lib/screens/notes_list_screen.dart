@@ -377,3 +377,6 @@ class NoteCard extends StatelessWidget {
     );
   }
 }
+ 
+     / /   U s i n g   L i s t V i e w . b u i l d e r   f o r   o p t i m a l   p e r f o r m a n c e   w i t h   l a r g e   n o t e   l i s t s  
+ 
